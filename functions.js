@@ -4,25 +4,26 @@ import db from './database.js';
 
 //############################ PRODUCTS #################################
 
+// Query som hämtar produkter, kategorier och tillverkare med join
 const getProducts = () => {
-    const products = db.prepare(`SELECT products.name AS productName,
-                             products.description,
+    const products = db.prepare(`SELECT products.product_id, products.name AS productName,
+                             products.description, products.price, products.stock,
                              categories.name AS categoryName, 
                              manufacturers.name AS manufacturerName
                              FROM products
-                             LEFT JOIN products_categories
+                             JOIN products_categories
                              ON products.product_id= products_categories.product_id
-                             LEFT JOIN manufacturers 
+                             JOIN manufacturers 
                              ON products.manufacturer_id = manufacturers.manufacturer_id
                              LEFT JOIN categories
                              ON categories.category_id = products_categories.category_id;`)
                             .all();
         
-    return products;
+    return products; 
 };
 
 
-
+// Query som hämtar produkt med id
 const getProductById = (id) => {
     const productById = db.prepare(`SELECT * FROM 
                                     products WHERE product_id = ?;`)
@@ -31,8 +32,7 @@ const getProductById = (id) => {
     return productById;
 };
 
-
-// Kom ihåg att lösa denna
+// Query som hämtar produkt genom sökparameter 
 const getProductsBySearch = (searchterm) => {
 
     const productBySearch = db.prepare(`SELECT * FROM products 
@@ -45,7 +45,7 @@ const getProductsBySearch = (searchterm) => {
 
 
 
-
+// Query som hämtar produkt genom kategori id med join
 const getProductByCategoryId = (id) => {
     const productByCategory = db.prepare(`SELECT products.name AS productName, 
                                         categories.name AS categoriesName 
@@ -61,8 +61,10 @@ const getProductByCategoryId = (id) => {
 };
 
 
-
+// Query somlägger till produkter med parametrar.
 const addProducts = (manufacturer_id, name, description, price, stock) => {
+
+
     const query = db.prepare(`INSERT INTO products 
                                     (manufacturer_id, name, description, price, stock)
                                     VALUES (?, ?, ?, ?, ?)`);
@@ -76,11 +78,11 @@ const addProducts = (manufacturer_id, name, description, price, stock) => {
 
 
 
-// Funktion som hämtas i API anropet för att uppdatera priset av en produkt genom dess id
-const updateProductById = (id, newPrice) => { 
+// Query som uppdaterar priset av en produkt genom dess id
+const updateProductById = (id, price) => { 
     try {
         const query = db.prepare(`UPDATE products SET price = ? WHERE product_id = ?;`);
-        const result = query.run(newPrice, id);
+        const result = query.run(price, id);
       
 
         if (result.changes === 0) { // Kontrollerar om resultatet och en ändring gjorts
@@ -94,7 +96,7 @@ const updateProductById = (id, newPrice) => {
 
         // Om produkt med sökt id finns returneras produktens namn, och det nya priset.
         if (product) { 
-            return { name: product.name, price: newPrice }; 
+            return { name: product.name, price: price }; 
 
         } else {
             return null; // Returnerar null om ingen product med det sökta id hittas
@@ -104,6 +106,7 @@ const updateProductById = (id, newPrice) => {
         // Loggar fel med databas anslutning och kastar vidare till Express
     } catch (error) {
 
+        // Kastar felet till express catch
         console.error("Database error", error);
         throw error; 
     }
@@ -111,7 +114,7 @@ const updateProductById = (id, newPrice) => {
 
 
 
-
+// Query som tar bort produkt genom id
 const deleteProduct = (id) => {
     const query = db.prepare(`DELETE FROM products 
                     WHERE product_id = ?;`);
@@ -120,8 +123,10 @@ const deleteProduct = (id) => {
     
 };
 
+
 //########################## CUSTOMERS ################################
 
+// Query som hämtar kunder genom id
 const getCustomerById = (id) => {
     const query = db.prepare(`SELECT customers.name,customers.address, customers.phone, 
                             customers.email, orders.order_id, orders.order_date, 
@@ -142,7 +147,7 @@ const getCustomerById = (id) => {
 };
 
 
-
+// Uppdaterar en kund genom id
 const updateCustomerById = (id, address, email, phone) => {
 
     try{
@@ -169,7 +174,7 @@ const updateCustomerById = (id, address, email, phone) => {
 }; 
 
 
-
+// Hämtar kunder och dess ordrar genom id
 const getCustomerOrdersById = (id) => {
     const query = db.prepare(`SELECT * FROM orders WHERE customer_id=?;`);
 
@@ -179,6 +184,7 @@ const getCustomerOrdersById = (id) => {
 
 //########################### ANALYSDATA ##############################
 
+// Hämtar statistik av produkter och kategorier
 const getProductStat = () => {
     const query = db.prepare(`SELECT categories.name, COUNT(products.product_id) 
                             AS total_products, ROUND(AVG(products.price),2)
@@ -194,6 +200,7 @@ const getProductStat = () => {
 
 };
 
+// Hämtar statistik av omdöme 
 const getReviewsStats = () => {
     const query = db.prepare(`SELECT products.name, AVG(reviews.rating) 
                             AS average_rating 
@@ -208,22 +215,34 @@ const getReviewsStats = () => {
 
 // #################################### VG ##############################
 
+// Hämtar produkter via namn och/ eller kategori
 const getProductsByNameAndCategory = (name, category) => {
-    const productBySearch = db.prepare(`SELECT products.name 
-                                        AS productName, categories.name 
-                                        AS categoryName 
-                                        FROM products 
-                                        JOIN products_categories 
-                                        ON products.product_id = products_categories.product_id 
-                                        JOIN categories 
-                                        ON categories.category_id = products_categories.category_id 
-                                        WHERE products.name LIKE ? 
-                                        AND categories.name LIKE ?;`)
-                                        .all(`%${name}%`, `%${category}%`);
+    let query = `SELECT products.name AS productName, categories.name AS categoryName 
+                 FROM products 
+                 JOIN products_categories ON products.product_id = products_categories.product_id 
+                 JOIN categories ON categories.category_id = products_categories.category_id 
+                 WHERE 1=1`; 
+
+                 
+    const params = [];
+
+    // Om man söker på namn läggs denna queryn till på den befintliga.
+    if (name) {
+        query += ` AND products.name LIKE ?`;
+        params.push(`%${name}%`);  
+    }
+
+    // Om man söker på kategori läggs denna queryn till på den befintliga.
+    if (category) {
+        query += ` AND categories.name LIKE ?`;
+        params.push(`%${category}%`); 
+    }
+
+    
+    const productBySearch = db.prepare(query).all(...params);
 
     return productBySearch;
 };
-
 
 
 export{getProducts,getProductById, getProductsBySearch, getProductByCategoryId, 

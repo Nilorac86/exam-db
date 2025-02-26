@@ -1,8 +1,5 @@
 
-
 import express from "express";
-//import db from "./database.js";
-import {createProductTrigger} from "./trigger.js";
 
 import {getProductById, getProducts, getProductsBySearch, getProductByCategoryId, 
         addProducts, updateProductById, deleteProduct, getCustomerById, updateCustomerById, 
@@ -22,8 +19,7 @@ app.listen(PORT, URL, () => {
 
 
 
-//createProductTrigger(db);
-
+// Hämtar alla produkter, dess kategori och tillverkare
 app.get(`/products`, (req, res) => {
     try{
 
@@ -40,7 +36,7 @@ app.get(`/products`, (req, res) => {
 });
 
 
-
+// Hämtar produkt genom id
 app.get(`/products/:id`, (req, res) => {
     
     try{
@@ -93,25 +89,50 @@ app.get(`/products/category/:categoryId`, (req,res) => {
 });
 
 
+// Lägger till produkter 
 app.post(`/products`, (req, res) => {
 
     try{
         const {manufacturer_id, name, description, price, stock} = req.body;
-        const addProductResult = addProducts(manufacturer_id, name, description, price, stock);
 
-        if ( !name || !price || !stock ){
-            return res.status(400).json({error: `Name, price and stock are requird to proced `})
+        // Validerar att namn, pris och saldo finns annars returneras ett error. 
+        if ( !name || !price || !stock ) {
+            return res.status(400).json({ error: "Name, price and stock are required to proceed." });
         }
+
+        // Validerar att pris och saldo är en siffra annars skickas ett error.
+        if (isNaN(price) || isNaN(stock) ){
+            return res.status(400).json({ error: `Price and stock must be a number.` });
+        }
+
+          
+        // Validerar om priset är större än 0 om inte returneras ett error med info.
+        if (price <= 0) {
+            return res.status(400).json({ error: `Price must be greater than 0.` });
+        }
+
+        // Anropar funktionen
+        const productId = addProducts(manufacturer_id, name, description, price, stock);
         
-        console.log(addProductResult);
-        res.json(addProductResult);
-       
+        // Returnerar den tillagda produkten med ett meddelande med förändring, sistaraden (id) 
+        // och den tillagda produkten.
+        return res.status(201).json({
+            message: "Product has been successfully added.",
+            product: {
+            product_id: productId,
+            manufacturer_id: manufacturer_id,
+            name: name,
+            description: description,
+            price: price,
+            stock: stock
+            }
+        });
+   
+       // Fångar fel som kan uppstå under processen och skickar ett error
     } catch (error) {
-
-        console.error(`Error: Something went wrong `, error);
-        res.status(500).json({ error: `Something went wrong while fetching products by category. Try again later!` });
+        console.error(error);
+        res.status(500).json({ error: "Something went wrong while adding the product. Try again later!" });
     };
-
     
 });
 
@@ -141,7 +162,7 @@ app.put(`/products/:id`, (req, res) => {
          // Validerar funktionen och returnerar meddelande, productnamn och uppdaterat pris i json format
             if (updatedProduct) {
                 
-                return res.status(200).json({ 
+                return res.status(201).json({ 
                     message: `Product price has been updated.`, 
                     productName: updatedProduct.name, 
                     updatedPrice: price 
@@ -156,7 +177,7 @@ app.put(`/products/:id`, (req, res) => {
         // Fångar fel som kan uppstå under processen och skickar ett error.
     } catch (error) {
         console.error(`Error updating product:`, error);
-        return res.status(500).json({ error: `Failed to update the product. Please try again later. Try again later!` });
+        return res.status(500).json({ error: `Failed to update the product. Try again later!` });
     }
 });
 
@@ -221,10 +242,9 @@ app.put(`/customers/:id`, (req, res) => {
         
             
          const updateCustomerResult = updateCustomerById(id, address, email, phone);
+
          if(updateCustomerResult){
             
-            console.log(updateCustomerResult);
-
             return res.status(200).json({
             messege: `The customer has been updated`,
             customer: updateCustomerResult
@@ -236,7 +256,6 @@ app.put(`/customers/:id`, (req, res) => {
         console.error(`Error: Something went wrong `, error);
         res.status(500).json({ error: `Something went wrong while updating customer. Try again later!` });
     };
-
 });
 
 
@@ -283,8 +302,8 @@ app.get(`/product/stats`, (req, res) => {
 app.get(`/reviews/stats`, (req, res) => {
 
     try{
-         
         const reviewsStats = getReviewsStats();
+
         console.log(reviewsStats);
         res.json(reviewsStats);
 
@@ -301,30 +320,16 @@ app.get(`/reviews/stats`, (req, res) => {
 
 //################################# EXTRA UPPGIFT VG ###################################
 
-
-// Implementera på minst tre valfria endpoints:
-// ● Validering av indata, till exempel
-// ○ Produktnamn får inte vara tomma
-// ● Anpassade felmeddelanden som tydligt beskriver vad som gått fel
-// ● Använd lämpliga HTTP-statuskoder (200, 201, 400, 404, etc.)
-
-
-// Hämtar produkter och kategorier vid sökning genom parametrar. 
+// Hämtar produkter och/ eller kategorier vid sökning genom parametrar från queryn. 
 //?name=gaming&category=electronics
 app.get('/search/products', (req, res) => {
    
     try {
-    const { name, category } = req.query;  
-    
-    // Validerar om både namn och kategori är angivet om inte skickas ett error meddelande.
-    if (!name || !category) {
-        return res.status(400).json({ error: `Both name and category are required for search.` });
-    } 
-     
+        const { name, category } = req.query;  
+   
 
         // Funktionen med queryn anropas. 
         const products = getProductsByNameAndCategory(name, category);
-
 
         
         // Kontrollerar om inga produkter hittades och då skickas ett meddelande
@@ -332,11 +337,13 @@ app.get('/search/products', (req, res) => {
             return res.status(404).json({ message: `No products match the provided name and category.` });
         }
 
-        console.log(products); // Loggar svaret i terminalen
+        // Svar från anropet skickas tillbaka med meddelande och produkter.
             res.status(200).json({
             message: `Product search was successful.`,
-            products: products});  // Svar från anropet skickas tillbaka i json format
+            products: products});  
 
+
+    // Fångar upp eventuella fel eller problem med att hämta. Och skickar error meddelande.
     } catch (error) {
         console.error(`Error fetching products:`, error);
         res.status(500).json({ error: `Something went wrong while fetching products.` });

@@ -24,9 +24,18 @@ app.get(`/products`, (req, res) => {
     try{
 
         const products = getProducts();
-        console.log(products);
-        res.json(products);
-    
+        
+        // Om inga produkter finns returneras ett felmeddelande.
+        if (products.length === 0) {
+            return res.status(404).json({ message: `No products found.` });
+        }
+        
+        // Returnerar svar från anropet med meddelande.
+        res.status(200).json({
+            message: `Fetching products were successful.`,
+            products: products});  
+
+    // Fångar ev fel i kod eller databas, levererar ett felmeddelande.
     } catch (error) {
 
         console.error(`Error while fetching products:`, error);
@@ -36,33 +45,52 @@ app.get(`/products`, (req, res) => {
 });
 
 
-// Hämtar produkt genom id
+// Hämtar produkt genom idparameter. 
 app.get(`/products/:id`, (req, res) => {
     
     try{
         const productById = getProductById(req.params.id);
-        console.log(productById);
-        res.json(productById);
-    
+
+        // Om ingen produkt finns returneras ett meddelande.
+        if (productById.length === 0) {
+            return res.status(404).json({ message: `No product found.` });
+
+        };
+
+        // Skickar tillbaka produkten som json svar.
+        res.status(200).json({
+            message: `Fetching product was successful.`,
+            products: productById});
+
+        // fångar ev fel i kod eller databas.
     } catch (error) {
 
         console.error(`Error while fetching products by id:`, error);
         res.status(500).json({ error: `Something went wrong while fetching products by id. Try again later!` });
     };
-
-
 }); 
 
 
+// Hämtar produkter med sökparameter
 // ?name=searchterm
 app.get(`/product/search`, (req, res) => {
    try{
         const searchterm = req.query.name;
 
+        // Anropar query
         const productBySearch = getProductsBySearch(searchterm);
-        console.log(productBySearch);
-        res.json(productBySearch);
-   
+
+        // Om ingen produkt finns returneras ett meddelande.
+        if (productBySearch.length === 0) {
+            return res.status(404).json({ message: `No products match the provided searchterm.` });
+        }
+        
+        // Skickar ett json svar och produkter som hittades i sökningen.
+        res.status(200).json({
+            message: `Product search were successful.`,
+            products: productBySearch});  
+
+   // Fångar fel i databas eller kod.
     } catch (error) {
 
         console.error(`Error while searching for products:`, error);
@@ -72,29 +100,40 @@ app.get(`/product/search`, (req, res) => {
 });
 
 
-
+// Hämtar produkter med kategori id.
 app.get(`/products/category/:categoryId`, (req,res) => {
     try{
         const productsByCategoryId = getProductByCategoryId(req.params.categoryId);
-        console.log(productsByCategoryId);
-        res.json(productsByCategoryId);
+
+        // Om ingen produkt hittas returneras ett meddelande.
+        if (productsByCategoryId.length === 0) {
+            return res.status(404).json({ message: `No products match the category id.` });
+        }
+
+        // Json svar skickas med hämtad produkt
+        res.status(200).json({
+            message: `Fetching products were successful.`,
+            products: productsByCategoryId}); 
        
+            // Fångar ev fel i db eller liknande och skickar error meddelande.
     } catch (error) {
 
         console.error(`Error while fetching products by category:`, error);
         res.status(500).json({ error: `Something went wrong while fetching products by category. Try again later!` });
     };
-   
-
 });
+
+
+
 
 
 // Lägger till produkter 
 app.post(`/products`, (req, res) => {
 
     try{
-        const {manufacturer_id, name, description, price, stock} = req.body;
+        const {manufacturer_id, name, description, price, stock, category_id} = req.body;
 
+        
         // Validerar att namn, pris och saldo finns annars returneras ett error. 
         if ( !name || !price || !stock ) {
             return res.status(400).json({ error: "Name, price and stock are required to proceed." });
@@ -111,8 +150,8 @@ app.post(`/products`, (req, res) => {
             return res.status(400).json({ error: `Price must be greater than 0.` });
         }
 
-        // Anropar funktionen
-        const productId = addProducts(manufacturer_id, name, description, price, stock);
+        // Anropar funktionen och kör queryn.
+        const productId = addProducts(manufacturer_id, name, description, price, stock, category_id);
         
         // Returnerar den tillagda produkten med ett meddelande med förändring, sistaraden (id) 
         // och den tillagda produkten.
@@ -131,20 +170,24 @@ app.post(`/products`, (req, res) => {
        // Fångar fel som kan uppstå under processen och skickar ett error
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: "Something went wrong while adding the product. Try again later!" });
+        res.status(500).json({ error: "Something went wrong while adding product. Try again later!" });
     };
     
 });
 
 
 
+
+
+
 // Uppdaterar priset på en product med id
 app.put(`/products/:id`, (req, res) => {
+
+    try{
     const { id } = req.params; // skickar in id som en parameter i sökvägen
     const { price } = req.body; // skickar in den nya informationen via body
 
-    try {
-        
+
         // Validerar om priset är ett nummer annars returneras ett error med info.
         if (isNaN(price)){
             return res.status(400).json({ error: `Price must be a number.` });
@@ -154,26 +197,26 @@ app.put(`/products/:id`, (req, res) => {
         if (price <= 0) {
             return res.status(400).json({ error: `Price must be greater than 0.` });
 
-        // Om pris är större än 0 anropas funktionen med queryn.
-        } else {
+        } 
+            
             const updatedProduct = updateProductById(id, price);
-            console.log(updatedProduct);
 
-         // Validerar funktionen och returnerar meddelande, productnamn och uppdaterat pris i json format
-            if (updatedProduct) {
-                
+
+            // Om produkten inte finns returneras ett meddelande.
+            if (!updatedProduct) {
+                return res.status(404).json({ message: "Product not found." });
+            }
+        
+                // returnerar ett json svar
                 return res.status(201).json({ 
                     message: `Product price has been updated.`, 
+                    product:{
                     productName: updatedProduct.name, 
                     updatedPrice: price 
+                    }
                 });
     
-            // Om inte någon product hittas skickas ett meddelande.
-            } else {
-                return res.status(404).json({ message: `Product not found.` });
-            };
-        };
-
+    
         // Fångar fel som kan uppstå under processen och skickar ett error.
     } catch (error) {
         console.error(`Error updating product:`, error);
@@ -184,15 +227,22 @@ app.put(`/products/:id`, (req, res) => {
 
 
 
+// Raderar en produkt genom id parameter
 app.delete(`/products/:id`, (req, res) => {
 
     try{
         const {id} = req.params;
+        
+        // Anropar query funktion med id parameter
         const deleteProductResult = deleteProduct(id);
-    
-        console.log(deleteProductResult);
-        res.json(deleteProductResult);
+
+        // Returnerar json svar 
+        return res.status(200).json({
+            message: `Product has been successfully deleted`,
+            deleteProductResult
+        });
        
+        // Fångar fel och lämnar error meddelande
     } catch (error) {
 
         console.error(`Error: Something went wrong `, error);
@@ -204,14 +254,27 @@ app.delete(`/products/:id`, (req, res) => {
 
 //########################## CUSTOMERS ################################
 
+// Hämtar kund med order info genom id
 app.get(`/customers/:id`, (req, res) => {
 
     try{
-        const getCustomerByIdResult = getCustomerById(req.params.id);
+        const {id} = req.params
 
-        console.log (getCustomerByIdResult);
-        res.json(getCustomerByIdResult);
+        const getCustomerByIdResult = getCustomerById(id);
+
+        // Validerar om det inte finns kund med id returneras ett meddelande.
+        if (getCustomerByIdResult.length === 0){
+            return res.status(404).json({ message: `No customer with id:${id} found.` });
+        }
+
+        // Returnerar json svar om kund och order.
+       return res.status(200).json({
+        message: `Fetching customer were successful`,
+        customer: getCustomerByIdResult
+    });
            
+
+    // Fångar ev fel och ger error meddelande.
     } catch (error) {
 
         console.error(`Error: Something went wrong `, error);
@@ -223,13 +286,15 @@ app.get(`/customers/:id`, (req, res) => {
 
 
 
+
+// Uppdaterar kund genom id.
 app.put(`/customers/:id`, (req, res) => {
 
     try{
-        const {id} = req.params;
+        const {id} = req.params; 
         const {address, email, phone} = req.body;
        
-
+        // Validerar att alla fält är ifyllda om inte returneras ett json svar
         if (!address || !email || !phone ){
             return res.status(400).json({error: `Address, email, and phone are required to proceed `});
         }
@@ -240,17 +305,21 @@ app.put(`/customers/:id`, (req, res) => {
              return res.status(400).json({ error: `The email address must be valid and correctly formatted` });
          } 
         
-            
+         
          const updateCustomerResult = updateCustomerById(id, address, email, phone);
 
-         if(updateCustomerResult){
-            
-            return res.status(200).json({
-            messege: `The customer has been updated`,
-            customer: updateCustomerResult
-        });
-    }
+         // Om ingen kund hittas skickas json svar.
+         if(!updateCustomerResult){
+            return res.status(404).json({messege: `The customer not found with id: ${id}` });
+        
+         }
 
+         // Uppdaterade produkten skickas son json svar.
+        return res.status(200).json({
+            messege: `The customer has been updated`,
+            customer: updateCustomerResult });
+
+// Fångar ev fel.
     } catch (error) {
 
         console.error(`Error: Something went wrong `, error);
@@ -260,16 +329,27 @@ app.put(`/customers/:id`, (req, res) => {
 
 
 
+
+
+// Hämtar en kunds ordrar
 app.get(`/customers/:id/orders`, (req, res) => {
 
     try{
         const {id} = req.params;
         const customerOrders = getCustomerOrdersById(id);
 
-        console.log(customerOrders);
-        res.json(customerOrders);
+        // Om inga ordrar hittas returneras ett json svar.
+        if (customerOrders.length === 0) {
+            return res.status(404).json({ message: `No orders found.` });
+        }
+        
+       // Returnerar json svar. 
+        return res.status(200).json({
+            message: `Fetching orders were successful`,
+            orders: customerOrders
+        });
 
-
+        // Fångar ev fel och skickar error meddelande.
     } catch (error) {
 
         console.error(`Error: Something went wrong `, error);
@@ -280,15 +360,22 @@ app.get(`/customers/:id/orders`, (req, res) => {
 
 
 // ######################## ANALYSDATA ##############################
-
+// Hämtar statistik av grupperad kategori, antal produkter och genomsnittligt pris/kategori
 app.get(`/product/stats`, (req, res) => {
 
     try{
          
         const productStats = getProductStat();
 
-        console.log(productStats);
-        res.json(productStats);
+
+        if (productStats === 0){
+            return res.status(404).json({ message: "No products found." });
+        }
+
+
+        return res.status(200).json({
+            message: `Fetching products were successful`,
+            products: productStats});
 
 
     } catch (error) {
@@ -304,9 +391,17 @@ app.get(`/reviews/stats`, (req, res) => {
     try{
         const reviewsStats = getReviewsStats();
 
-        console.log(reviewsStats);
-        res.json(reviewsStats);
+          // Validerar om det inte finns kund med id returneras ett meddelande.
+          if (reviewsStats.length === 0){
+            return res.status(404).json({ message: `No reviews found.` });
+        }
 
+        // Returnerar json svar om kund och order.
+       return res.status(200).json({
+        message: `Fetching reviews were successful`,
+        customer: reviewsStats
+    });
+       
 
     } catch (error) {
 
@@ -337,7 +432,7 @@ app.get('/search/products', (req, res) => {
             return res.status(404).json({ message: `No products match the provided name and category.` });
         }
 
-        // Svar från anropet skickas tillbaka med meddelande och produkter.
+        // Svar från anropet skickar tillbaka json svar med medmeddelande och produkter.
             res.status(200).json({
             message: `Product search was successful.`,
             products: products});  

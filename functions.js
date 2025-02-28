@@ -27,10 +27,11 @@ const getProducts = () => {
 const getProductById = (id) => {
     const productById = db.prepare(`SELECT * FROM 
                                     products WHERE product_id = ?;`)
-                                    .get(id);
+                                    .all(id);
                             
     return productById;
 };
+
 
 // Query som hämtar produkt genom sökparameter 
 const getProductsBySearch = (searchterm) => {
@@ -61,20 +62,29 @@ const getProductByCategoryId = (id) => {
 };
 
 
-// Query somlägger till produkter med parametrar.
-const addProducts = (manufacturer_id, name, description, price, stock) => {
+
+// Query somlägger till produkter med parametrar lägger även till kategori id och uppdaterar produkt/kategori.
+const addProducts = (manufacturer_id, name, description, price, stock, category_id) => {
 
 
     const query = db.prepare(`INSERT INTO products 
                                     (manufacturer_id, name, description, price, stock)
                                     VALUES (?, ?, ?, ?, ?)`);
+
     
     const result = query.run(manufacturer_id, name, description, price, stock);
 
-    return result ;
+    
+    const categoryQuery = db.prepare(`INSERT INTO products_categories (product_id, category_id) 
+                                      VALUES (?, ?)`);
+
+    categoryQuery.run(result.lastInsertRowid, category_id);
+
+    // Returnerar produktens id. 
+    return result.lastInsertRowid;
+
+   
 };
-
-
 
 
 
@@ -126,14 +136,14 @@ const deleteProduct = (id) => {
 
 //########################## CUSTOMERS ################################
 
-// Query som hämtar kunder genom id
+// Query som hämtar kunder och orderhistorik genom id
 const getCustomerById = (id) => {
-    const query = db.prepare(`SELECT customers.name,customers.address, customers.phone, 
+    const query = db.prepare(`SELECT customers.name AS customerName,customers.address, customers.phone, 
                             customers.email, orders.order_id, orders.order_date, 
-                            orders.shipping_method_id, products.name, order_details.quantity, 
+                            orders.shipping_method_id, products.name AS productName, order_details.quantity, 
                             order_details.status
                             FROM customers
-                            LEFT JOIN orders
+                            JOIN orders
                             ON customers.customer_id = orders.customer_id 
                             JOIN order_details
                             ON orders.order_id = order_details.order_id 
@@ -147,7 +157,8 @@ const getCustomerById = (id) => {
 };
 
 
-// Uppdaterar en kund genom id
+
+// Uppdaterar en kund genom id parameter
 const updateCustomerById = (id, address, email, phone) => {
 
     try{
@@ -156,10 +167,12 @@ const updateCustomerById = (id, address, email, phone) => {
 
         const result = query.run(address, email, phone, id);
 
+        // Om inga uppdateringar skett returneras null 
         if (result.changes === 0) {
             return null;
         }
 
+        // Query för att att hämta info om kund
         const customerQuery = db.prepare(`SELECT * FROM customers WHERE customer_id = ?;`);
         const customer = customerQuery.all(id)
 
@@ -223,8 +236,7 @@ const getProductsByNameAndCategory = (name, category) => {
                  JOIN categories ON categories.category_id = products_categories.category_id 
                  WHERE 1=1`; 
 
-                 
-    const params = [];
+    const params = [];        
 
     // Om man söker på namn läggs denna queryn till på den befintliga.
     if (name) {

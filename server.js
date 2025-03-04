@@ -1,23 +1,15 @@
 
-import express from "express";
+//import express from "express";
+
+import { app} from "./database.js";
 
 import {getProductById, getProducts, getProductsBySearch, getProductByCategoryId, 
         addProducts, updateProductById, deleteProduct, getCustomerById, updateCustomerById, 
         getCustomerOrdersById, getProductStat, getReviewsStats, getProductsByNameAndCategory,} from "./functions.js";
 
-const app = express();
-const PORT = 3000;
-const URL = "localhost";
-
-app.use(express.json());
 
 
-app.listen(PORT, URL, () => {
-
-    console.log(`Server is running att ${URL}:${PORT}`);
-});
-
-
+// ########################### PRODUKTER #################################
 
 // Hämtar alla produkter, dess kategori och tillverkare
 app.get(`/products`, (req, res) => {
@@ -153,6 +145,7 @@ app.post(`/products`, (req, res) => {
         // Anropar funktionen och kör queryn.
         const productId = addProducts(manufacturer_id, name, description, price, stock, category_id);
         
+        
         // Returnerar den tillagda produkten med ett meddelande med förändring, sistaraden (id) 
         // och den tillagda produkten.
         return res.status(201).json({
@@ -191,13 +184,13 @@ app.put(`/products/:id`, (req, res) => {
         // Validerar om priset är ett nummer annars returneras ett error med info.
         if (isNaN(price)){
             return res.status(400).json({ error: `Price must be a number.` });
-        }
+        };
           
         // Validerar om priset är större än 0 om inte returneras ett error med info.
         if (price <= 0) {
             return res.status(400).json({ error: `Price must be greater than 0.` });
 
-        } 
+        }; 
             
             const updatedProduct = updateProductById(id, price);
 
@@ -205,7 +198,7 @@ app.put(`/products/:id`, (req, res) => {
             // Om produkten inte finns returneras ett meddelande.
             if (!updatedProduct) {
                 return res.status(404).json({ message: "Product not found." });
-            }
+            };
         
                 // returnerar ett json svar
                 return res.status(201).json({ 
@@ -221,7 +214,7 @@ app.put(`/products/:id`, (req, res) => {
     } catch (error) {
         console.error(`Error updating product:`, error);
         return res.status(500).json({ error: `Failed to update the product. Try again later!` });
-    }
+    };
 });
 
 
@@ -232,16 +225,26 @@ app.delete(`/products/:id`, (req, res) => {
 
     try{
         const {id} = req.params;
-        
-        // Anropar query funktion med id parameter
-        const deleteProductResult = deleteProduct(id);
 
+        const product = getProductById(id); 
+
+        // Om produkten inte finns returneras ett meddelande.
+        if (product.length === 0) {
+            return res.status(404).json({
+                message: `Product with ID ${id} not found.`
+            });
+        };
+
+         // Anropar query funktion med id parameter
+         const deleteProductResult = deleteProduct(id);
+
+         if (deleteProductResult){
         // Returnerar json svar 
         return res.status(200).json({
-            message: `Product has been successfully deleted`,
-            deleteProductResult
+            message: `Product and reviews has been successfully deleted`,
         });
-       
+    };
+
         // Fångar fel och lämnar error meddelande
     } catch (error) {
 
@@ -264,7 +267,7 @@ app.get(`/customers/:id`, (req, res) => {
 
         // Validerar om det inte finns kund med id returneras ett meddelande.
         if (getCustomerByIdResult.length === 0){
-            return res.status(404).json({ message: `No customer with id:${id} found.` });
+            return res.status(404).json({ message: `No customer with ID:${id} found.` });
         }
 
         // Returnerar json svar om kund och order.
@@ -292,7 +295,7 @@ app.put(`/customers/:id`, (req, res) => {
 
     try{
         const {id} = req.params; 
-        const {address, email, phone} = req.body;
+        const {name, address, email, phone} = req.body;
        
         // Validerar att alla fält är ifyllda om inte returneras ett json svar
         if (!address || !email || !phone ){
@@ -306,7 +309,7 @@ app.put(`/customers/:id`, (req, res) => {
          } 
         
          
-         const updateCustomerResult = updateCustomerById(id, address, email, phone);
+         const updateCustomerResult = updateCustomerById(id, name, address, email, phone);
 
          // Om ingen kund hittas skickas json svar.
          if(!updateCustomerResult){

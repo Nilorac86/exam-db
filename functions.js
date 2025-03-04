@@ -1,10 +1,14 @@
 import db from './database.js';
 
+export{getProducts,getProductById, getProductsBySearch, getProductByCategoryId, 
+    addProducts, updateProductById, deleteProduct, getCustomerById , updateCustomerById, 
+    getCustomerOrdersById, getProductStat, getReviewsStats, getProductsByNameAndCategory,}
 
 
 //############################ PRODUCTS #################################
 
-// Query som hämtar produkter, kategorier och tillverkare med join
+// ################### Query som hämtar produkter, kategorier och tillverkare med join ######################
+
 const getProducts = () => {
 
     try{
@@ -21,31 +25,36 @@ const getProducts = () => {
                              ON categories.category_id = products_categories.category_id;`)
                             .all();
         
-    return products; 
+    return products; // Returnerar query svaret.
 
+    // Fångar och kastar och loggar fel i databas.
 } catch (error) {
     console.error(`Error while fetching products from the database:`, error);
     throw new Error(`Database error while fetching products.`);
 }
 }; 
 
-try{
 
-} catch (error) {
-    console.error(`Error while fetching products from the database:`, error);
-    throw new Error(`Database error while fetching products.`);
-}
 
-// Query som hämtar produkt med id
+// ############################### Query som hämtar produkt med id ###############################
+
 const getProductById = (id) => {
 
     try{
-    const productById = db.prepare(`SELECT * FROM 
-                                    products WHERE product_id = ?;`)
-                                    .all(id);
-                            
-    return productById;
 
+        const productById = db.prepare(`SELECT products.product_id, manufacturers.name AS manufacturerName,
+                                        products.name AS productName,
+                                        products.description, products.price, products.stock
+                                        FROM products
+                                        JOIN manufacturers 
+                                        ON products.manufacturer_id = manufacturers.manufacturer_id
+                                        WHERE product_id = ?;`)
+                                        .all(id);
+  
+                            
+    return productById;// Returnerar produkt via id som parameter
+
+    // Fångar och kastar och loggar fel i databas.
 } catch (error) {
     console.error(`Error while fetching products from the database:`, error);
     throw new Error(`Database error while fetching product.`);
@@ -54,7 +63,8 @@ const getProductById = (id) => {
 };
 
 
-// Query som hämtar produkt genom sökparameter 
+// ################### Query som hämtar produkt genom sökparameter ###########################
+
 const getProductsBySearch = (searchterm) => {
 
     try{
@@ -62,8 +72,9 @@ const getProductsBySearch = (searchterm) => {
                                         WHERE name LIKE ?;`)
                                         .all(`%${searchterm}%`);
 
-    return productBySearch;
+    return productBySearch; // Returnerar produkter genom att söka på productnamn med sökterm 
 
+    // Fångar och kastar och loggar fel i databas.
 } catch (error) {
     console.error(`Error while searching products from the database:`, error);
     throw new Error(`Database error while searching products.`);
@@ -73,12 +84,15 @@ const getProductsBySearch = (searchterm) => {
 
 
 
-// Query som hämtar produkt genom kategori id med join
+// ################### Query som hämtar produkt genom kategori id med join ####################
+
 const getProductByCategoryId = (id) => {
 
     try{
-    const productByCategory = db.prepare(`SELECT products.name AS productName, 
-                                        categories.name AS categoriesName 
+    const productByCategory = db.prepare(`SELECT categories.name AS categoriesName,
+                                        products.name AS productName, 
+                                        products.description, products.price,
+                                        products.stock
                                         FROM products_categories 
                                         JOIN products 
                                         ON products_categories.product_id = products.product_id
@@ -87,8 +101,9 @@ const getProductByCategoryId = (id) => {
                                         WHERE categories.category_id = ?; `)
                                         .all(id);
 
-    return productByCategory;
+    return productByCategory;// returnerar query svar
 
+ // Fångar och kastar och loggar fel i databas.
 } catch (error) {
     console.error(`Error while fetching products from the database:`, error);
     throw new Error(`Database error while fetching products by category.`);
@@ -97,7 +112,7 @@ const getProductByCategoryId = (id) => {
 
 
 
-// Query somlägger till produkter med parametrar lägger även till kategori id och uppdaterar produkt/kategori.
+// #### Query somlägger till produkter med parametrar lägger även till kategori id och uppdaterar produkt/kategori.
 const addProducts = (manufacturer_id, name, description, price, stock, category_id) => {
 
     try{
@@ -110,6 +125,7 @@ const addProducts = (manufacturer_id, name, description, price, stock, category_
     const result = query.run(manufacturer_id, name, description, price, stock);
 
     
+// query för att lägga till categori id och produkt id i products_categories automatiskt när en produkt läggs till.
     const categoryQuery = db.prepare(`INSERT INTO products_categories (product_id, category_id) 
                                       VALUES (?, ?)`);
 
@@ -125,9 +141,10 @@ const addProducts = (manufacturer_id, name, description, price, stock, category_
    
 };
 
+    
 
+// ############## Query som uppdaterar priset av en produkt genom dess id ##################
 
-// Query som uppdaterar priset av en produkt genom dess id
 const updateProductById = (id, price) => { 
     try {
         const query = db.prepare(`UPDATE products SET price = ? WHERE product_id = ?;`);
@@ -162,15 +179,17 @@ const updateProductById = (id, price) => {
 
 
 
-// Query som tar bort produkt genom id
+// ####################### Query som tar bort produkt genom id ########################
+
 const deleteProduct = (id) => {
 
     try{
     const query = db.prepare(`DELETE FROM products 
                     WHERE product_id = ?;`);
     
-    return query.run(id);
+    return query.run(id); // Kör queryn med id som parameter
 
+  // Fångar, loggar och kastar error vid fel.
 } catch (error) {
     console.error(`Error while removing product from the database:`, error);
     throw new Error(`Database error while removing product.`);
@@ -181,13 +200,14 @@ const deleteProduct = (id) => {
 
 //########################## CUSTOMERS ################################
 
-// Query som hämtar kunder och orderhistorik genom id
+// ################ Query som hämtar kunder och orderhistorik genom id #########################
+
 const getCustomerById = (id) => {
 
     try{
     const query = db.prepare(`SELECT customers.name AS customerName,customers.address, customers.phone, 
                             customers.email, orders.order_id, orders.order_date, 
-                            orders.shipping_method_id, products.name AS productName, order_details.quantity, 
+                            shipping_methods.name AS ShippingMethod, products.name AS productName, order_details.quantity, 
                             order_details.status
                             FROM customers
                             JOIN orders
@@ -196,11 +216,14 @@ const getCustomerById = (id) => {
                             ON orders.order_id = order_details.order_id 
                             JOIN products 
                             ON order_details.product_id = products.product_id 
+                            JOIN shipping_methods
+                            ON shipping_methods.shipping_method_id = orders.shipping_method_id
                             WHERE customers.customer_id = ? ;`);
 
     const result = query.all(id);
-    return result;
+    return result; // returnerar resultat av queryn
 
+    // Kastar och loggar ev fel
 } catch (error) {
     console.error(`Error while fetching customers from the database:`, error);
     throw new Error(`Database error while fetching customer.`);
@@ -209,14 +232,15 @@ const getCustomerById = (id) => {
 
 
 
-// Uppdaterar en kund genom id parameter
-const updateCustomerById = (id, address, email, phone) => {
+// #################### Uppdaterar en kund genom id parameter ###########################
+
+const updateCustomerById = (id, name, address, email, phone) => {
 
     try{
-        const query = db.prepare(`UPDATE customers SET address = ?, email = ?, 
+        const query = db.prepare(`UPDATE customers SET name = ?, address = ?, email = ?, 
                                 phone = ?  WHERE customer_id = ?;`);
 
-        const result = query.run(address, email, phone, id);
+        const result = query.run(name, address, email, phone, id);
 
         // Om inga uppdateringar skett returneras null 
         if (result.changes === 0) {
@@ -227,7 +251,7 @@ const updateCustomerById = (id, address, email, phone) => {
         const customerQuery = db.prepare(`SELECT * FROM customers WHERE customer_id = ?;`);
         const customer = customerQuery.all(id)
 
-        return customer;
+        return customer; // returnerar resultat av queryn customer
         
 
     } catch (error) {
@@ -237,14 +261,15 @@ const updateCustomerById = (id, address, email, phone) => {
 }; 
 
 
-// Hämtar kunder och dess ordrar genom id
+// ###################  Hämtar kunder och dess ordrar genom id ################################
+
 const getCustomerOrdersById = (id) => {
 
     try{
     const query = db.prepare(`SELECT * FROM orders WHERE customer_id=?;`);
 
-    const result = query.all(id);
-    return result;
+    const result = query.all(id); 
+    return result; // returnerar resultat av queryn
 
 } catch (error) {
     console.error(`Error while fetching customer and orders from the database:`, error);
@@ -254,11 +279,12 @@ const getCustomerOrdersById = (id) => {
 
 //########################### ANALYSDATA ##############################
 
-// Hämtar statistik av produkter och kategorier
+// ##################### Hämtar statistik av produkter och kategorier #########################
+
 const getProductStat = () => {
 
     try{
-    const query = db.prepare(`SELECT categories.name, COUNT(products.product_id) 
+    const query = db.prepare(`SELECT categories.name AS categoryName, COUNT(products.product_id) 
                             AS total_products, ROUND(AVG(products.price),2)
                             AS average_price 
                             FROM products 
@@ -268,7 +294,7 @@ const getProductStat = () => {
                             ON categories.category_id = products_categories.category_id GROUP BY categories.name;`)
 
     const result = query.all();
-    return result;
+    return result; // returnerar resultat av queryn
     
 } catch (error) {
     console.error(`Error while fetching product from the database:`, error);
@@ -276,7 +302,8 @@ const getProductStat = () => {
 }
 };
 
-// Hämtar statistik av omdöme 
+// ########################## Hämtar statistik av omdöme ##########################
+
 const getReviewsStats = () => {
 try{
     const query = db.prepare(`SELECT products.name, AVG(reviews.rating) 
@@ -285,8 +312,9 @@ try{
                             JOIN products 
                             ON reviews.product_id = products.product_id GROUP BY products.name;`);
     const result = query.all();
-    return result;
+    return result; // returnerar resultat av queryn
 
+    // Kastar och loggar eventuella fel
 } catch (error) {
     console.error(`Error while fetching product from the database:`, error);
     throw new Error(`Database error while fetching reviews statistics.`);
@@ -295,17 +323,19 @@ try{
 };
 
 
-// #################################### VG ##############################
+// ################################ VG SÖKFUNKTION PÅ NAMN OCH KATEGORI ##############################
 
-// Hämtar produkter via namn och/ eller kategori
+// ######################## Hämtar produkter via namn och/ eller kategori ########################
+
 const getProductsByNameAndCategory = (name, category) => {
 
     try{
-    let query = `SELECT products.name AS productName, categories.name AS categoryName 
-                 FROM products 
-                 JOIN products_categories ON products.product_id = products_categories.product_id 
-                 JOIN categories ON categories.categoructy_id = products_categories.category_id 
-                 WHERE 1=1`; 
+        let query = `SELECT products.name AS productName, categories.name AS categoryName, 
+                    products.description, products.price, products.stock
+                    FROM products 
+                    JOIN products_categories ON products.product_id = products_categories.product_id 
+                    JOIN categories ON categories.category_id = products_categories.category_id 
+                    WHERE 1=1`; 
 
     const params = [];        
 
@@ -321,11 +351,12 @@ const getProductsByNameAndCategory = (name, category) => {
         params.push(`%${category}%`); 
     }
 
-    
+    // skickar med parametrarna som lagras i arrayen
     const productBySearch = db.prepare(query).all(...params);
 
     return productBySearch;
 
+    // Kastar och loggar ev fel.
 } catch (error) {
     console.error(`Error while searching products from the database:`, error);
     throw new Error(`Database error while searching products.`);
@@ -333,6 +364,7 @@ const getProductsByNameAndCategory = (name, category) => {
 };
 
 
-export{getProducts,getProductById, getProductsBySearch, getProductByCategoryId, 
-        addProducts, updateProductById, deleteProduct, getCustomerById , updateCustomerById, 
-        getCustomerOrdersById, getProductStat, getReviewsStats, getProductsByNameAndCategory }
+
+
+
+       
